@@ -268,6 +268,7 @@
         <button data-page="assignments"><span class="nav-icon">✓</span> Assignments</button>
         <button data-page="schedule"><span class="nav-icon">◷</span> Schedule</button>
         <button data-page="study"><span class="nav-icon">◎</span> Study</button>
+        <button data-page="tutoring"><span class="nav-icon">?</span> Tutoring Hours</button>
         <button data-page="grades"><span class="nav-icon">A</span> Grades</button>
         <button data-page="routines"><span class="nav-icon">☑</span> Routines</button>
         <button data-page="settings"><span class="nav-icon">⚙</span> Settings</button>
@@ -283,6 +284,7 @@
         <section class="page" id="assignments"></section>
         <section class="page" id="schedule"></section>
         <section class="page" id="study"></section>
+        <section class="page" id="tutoring"></section>
         <section class="page" id="grades"></section>
         <section class="page" id="routines"></section>
         <section class="page" id="settings"></section>
@@ -310,8 +312,9 @@
     const STORAGE_KEY = 'lyric-school-planner-v1';
     const SCHOOL_START = '2026-08-10';
     const SCHOOL_END = '2027-05-26';
+    const GRADING_POLICY_VERSION = 'clark-syllabus-weights-2026-v1';
     const classDefaults = [
-      {id:'algebra2',period:1,name:'Algebra 2',bName:'Algebra 2',room:'C110',teacher:'Rubio, Deborah',start:'09:00',end:'09:50',earlyStart:'09:00',earlyEnd:'09:25',color:'#2f6fed',weights:{homework:20,quiz:20,test:35,project:25},goal:90},
+      {id:'algebra2',period:1,name:'Algebra 2',bName:'Algebra 2',room:'C110',teacher:'Rubio, Deborah',start:'09:00',end:'09:50',earlyStart:'09:00',earlyEnd:'09:25',color:'#2f6fed',weights:{formative:40,summative:60},gradingPolicy:{type:'formative-summative',formative:40,summative:60,semesterExam:10,source:'Deborah Rubio Algebra 2 syllabus'},goal:90},
       {id:'spanish2',period:2,name:'Spanish 2',bName:'Spanish 2',room:'A105',teacher:'Granado, Xiomara',start:'09:55',end:'10:50',earlyStart:'09:30',earlyEnd:'09:55',color:'#b65b19',weights:{homework:20,quiz:20,test:35,project:25},goal:90},
       {id:'worldhistory',period:3,name:'World History',bName:'World History',room:'A211',teacher:'White, Karla',start:'10:55',end:'11:45',earlyStart:'10:00',earlyEnd:'10:25',color:'#8c4bc0',weights:{homework:20,quiz:20,test:35,project:25},goal:90},
       {id:'avtech',period:4,name:'Principles of Arts, A/V Technology & Communications',bName:'Principles of Arts, A/V Technology & Communications',room:'C204',teacher:'Reyes, Lesley',start:'11:50',end:'12:40',earlyStart:'10:30',earlyEnd:'10:55',color:'#cf3b67',weights:{homework:20,quiz:20,test:35,project:25},goal:90},
@@ -319,6 +322,22 @@
       {id:'lunch',period:6,name:'Lunch',bName:'Lunch',room:'CAFE',teacher:'Zimmerman, Steve',start:'13:40',end:'14:30',earlyStart:'11:30',earlyEnd:'11:55',color:'#5d6b7f',weights:{homework:20,quiz:20,test:35,project:25},goal:100,isLunch:true},
       {id:'english2',period:7,name:'English 2',bName:'English 2',room:'A209',teacher:'Jones, Crystal',start:'14:35',end:'15:25',earlyStart:'12:00',earlyEnd:'12:25',color:'#d58a00',weights:{homework:20,quiz:20,test:35,project:25},goal:90},
       {id:'chemistry1',period:8,name:'Chemistry 1',bName:'Chemistry 1',room:'A049',teacher:'Tovar, Selene',start:'15:30',end:'16:20',earlyStart:'12:30',earlyEnd:'13:00',color:'#a62126',weights:{homework:20,quiz:20,test:35,project:25},goal:90}
+    ];
+    const TUTORING_HOURS = [
+      {classId:'algebra2',teacher:'Deborah Rubio (Lyric’s teacher)',room:'C110',source:'Deborah Rubio Algebra 2 syllabus',sessions:[
+        {days:'Tuesday',time:'8:15–8:45 AM',note:'Morning tutoring'},
+        {days:'Thursday',time:'4:20–4:50 PM',note:'After-school tutoring'}
+      ]},
+      {classId:'algebra2',teacher:'Johnson',room:'C215',source:'Algebra 2 tutoring team',sessions:[
+        {days:'Tuesday',time:'8:15–8:45 AM',note:'Morning tutoring'},
+        {days:'Wednesday',time:'4:20–4:50 PM',note:'After-school tutoring'}
+      ]},
+      {classId:'algebra2',teacher:'Nicholson',room:'C217',source:'Algebra 2 tutoring team',sessions:[
+        {days:'Monday & Thursday',time:'4:20–4:50 PM',note:'After-school tutoring'}
+      ]},
+      {classId:'algebra2',teacher:'Pedroza',room:'C218',source:'Algebra 2 tutoring team',sessions:[
+        {days:'Tuesday & Wednesday',time:'4:20–4:50 PM',note:'After-school tutoring'}
+      ]}
     ];
     const defaultState = {
       profile:{name:'Lyric',grade:'10th Grade',school:'Clark High School',district:'Northside Independent School District'},
@@ -329,6 +348,7 @@
         {id:'first-day',title:'First day of 10th grade',type:'school',date:SCHOOL_START,time:'09:00',recurrence:'none',notes:'Clark High School'},
         {id:'last-day',title:'Last day of school',type:'school',date:SCHOOL_END,time:'16:20',recurrence:'none',notes:'Finish strong!'}
       ],
+      gradingPolicyVersion:GRADING_POLICY_VERSION,
       grades:[],
       classNotes:{}, studyLinks:[], studySessions:[], routineLog:{}, habitLog:{},
       routines:{
@@ -350,19 +370,26 @@
     let toastTimer = null;
 
     function clone(v){ return JSON.parse(JSON.stringify(v)); }
+    function applyKnownGradingPolicy(classes=[]){
+      const list=Array.isArray(classes)?clone(classes):clone(classDefaults),algebra2=list.find(c=>c.id==='algebra2');
+      if(algebra2){algebra2.weights={formative:40,summative:60};algebra2.gradingPolicy={type:'formative-summative',formative:40,summative:60,semesterExam:10,source:'Deborah Rubio Algebra 2 syllabus'};}
+      return list;
+    }
     function loadState(){
       try {
         const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
         if (!saved) return clone(defaultState);
-        const merged={
+        const needsGradingUpdate=saved.gradingPolicyVersion!==GRADING_POLICY_VERSION,merged={
           ...clone(defaultState), ...saved,
           profile:{...defaultState.profile,...saved.profile}, school:{...defaultState.school,...saved.school},
           settings:{...defaultState.settings,...saved.settings}, routines:{...defaultState.routines,...saved.routines},
-          classes:Array.isArray(saved.classes)&&saved.classes.length?saved.classes:clone(classDefaults),
+          classes:applyKnownGradingPolicy(Array.isArray(saved.classes)&&saved.classes.length?saved.classes:classDefaults),
           assignments:Array.isArray(saved.assignments)?saved.assignments:[], events:Array.isArray(saved.events)?saved.events:clone(defaultState.events),
           grades:Array.isArray(saved.grades)?saved.grades:[], classNotes:saved.classNotes||{}, studyLinks:saved.studyLinks||[],
-          studySessions:saved.studySessions||[], routineLog:saved.routineLog||{}, habitLog:saved.habitLog||{}, weeklyReviews:saved.weeklyReviews||{}, notified:saved.notified||{}
+          studySessions:saved.studySessions||[], routineLog:saved.routineLog||{}, habitLog:saved.habitLog||{}, weeklyReviews:saved.weeklyReviews||{}, notified:saved.notified||{},
+          gradingPolicyVersion:GRADING_POLICY_VERSION
         };
+        if(needsGradingUpdate||JSON.stringify(saved.classes||[])!==JSON.stringify(merged.classes))localStorage.setItem(STORAGE_KEY,JSON.stringify(merged));
         return merged;
       } catch(e){ return clone(defaultState); }
     }
@@ -566,6 +593,12 @@
       <div class="grid dashboard"><div class="stack"><div class="card card-pad"><div class="card-title"><div><h3>Normal bell schedule</h3><p>First period begins at 9:00 AM · ${esc(dayType(iso))}</p></div><span class="pill blue">7 classes + lunch</span></div><div class="schedule-list">${scheduleRows(state.school.start)}</div><div class="privacy-note" style="margin-top:12px"><strong>Lunch:</strong> Period 6 from 1:40–2:30 PM in the cafeteria.</div></div></div>
       <aside class="stack"><div class="card card-pad"><div class="card-title"><div><h3>Early-release bell schedule</h3><p>Use on Clark early-release dates</p></div><span class="pill gold">Ends 1:00 PM</span></div><div class="schedule-list">${scheduleRows(state.school.start,false,'early')}</div><div class="privacy-note" style="margin-top:12px"><strong>Source clarification:</strong> the screenshot lists fifth period as 11:00–10:25. The planner uses 11:00–11:25 to preserve the 25-minute sequence before sixth period begins at 11:30.</div></div><div class="card card-pad"><div class="card-title"><div><h3>School year</h3><p>Important dates</p></div></div><div class="day-agenda"><div class="agenda-row" style="--event-color:var(--blue)"><strong>First day</strong><small>Monday, August 10, 2026</small></div><div class="agenda-row" style="--event-color:var(--red)"><strong>Last day</strong><small>Wednesday, May 26, 2027</small></div></div></div><div class="card card-pad"><div class="card-title"><div><h3>Optional A/B schedule</h3><p>Lyric's supplied schedule is set to Standard.</p></div></div><p style="color:var(--muted);font-size:.83rem">If Clark begins using alternating days, switch to A/B in Settings and enter the B-day class names. The planner will alternate school days automatically.</p><button class="btn small secondary" data-page-jump="settings">Edit schedule</button></div></aside></div>`;
     }
+    function renderTutoring(){
+      const covered=new Set(TUTORING_HOURS.map(x=>x.classId));
+      const cards=TUTORING_HOURS.map(item=>{const c=classById(item.classId);return `<div class="card card-pad" style="border-top:5px solid ${esc(c.color)}"><div class="card-title"><div><h3>${esc(c.name)}</h3><p>Period ${Number(c.period)} · ${esc(item.teacher)}</p></div><span class="pill blue">${esc(item.room)}</span></div><div class="day-agenda">${item.sessions.map(s=>`<div class="agenda-row" style="--event-color:${esc(c.color)}"><strong>${esc(s.days)}</strong><small>${esc(s.time)} · ${esc(s.note)}</small></div>`).join('')}</div><div class="privacy-note" style="margin-top:12px">Source: ${esc(item.source)}</div></div>`;}).join('');
+      const missing=state.classes.filter(c=>!c.isLunch&&!covered.has(c.id));
+      document.getElementById('tutoring').innerHTML=`<div class="page-head"><div><h2>Tutoring Hours</h2><p>Teacher support times from the supplied 2026–27 syllabi.</p></div><button class="btn secondary" onclick="window.print()">Print</button></div><div class="grid two">${cards}</div><div class="card card-pad" style="margin-top:16px"><div class="card-title"><div><h3>No hours supplied yet</h3><p>These classes did not have an attached tutoring schedule.</p></div></div><div class="meta" style="display:flex;flex-wrap:wrap;gap:8px">${missing.length?missing.map(c=>`<span class="pill">P${Number(c.period)} · ${esc(c.name)}</span>`).join(''):'<span class="pill green">All class tutoring schedules supplied</span>'}</div><div class="privacy-note" style="margin-top:12px">Check with the teacher before attending. Tutoring schedules may change during the school year.</div></div>`;
+    }
     function renderStudy(){
       const tests=sortedAssignments(state.assignments.filter(a=>!a.completed&&['test','quiz','project','presentation'].includes(a.type)&&a.dueDate>=localISO()));
       const links=state.studyLinks||[];
@@ -620,10 +653,10 @@
       <div class="stack"><div class="settings-section"><h3>Reminders</h3><label>Reminder time<input type="time" id="reminderTime" value="${esc(s.reminderTime)}"></label><label style="margin-top:10px">Default days before due<select id="defaultReminderDays"><option value="0" ${s.defaultReminderDays==0?'selected':''}>Same day</option><option value="1" ${s.defaultReminderDays==1?'selected':''}>1 day</option><option value="2" ${s.defaultReminderDays==2?'selected':''}>2 days</option><option value="3" ${s.defaultReminderDays==3?'selected':''}>3 days</option><option value="5" ${s.defaultReminderDays==5?'selected':''}>5 days</option><option value="7" ${s.defaultReminderDays==7?'selected':''}>7 days</option></select></label><button class="btn wide" id="enableNotifications" style="margin-top:12px">Enable browser notifications</button><p style="font-size:.72rem;color:var(--muted)">Notifications are checked while the planner is open. Browser permission is required.</p></div><div class="settings-section"><h3>Class schedule options</h3><label>Schedule type<select id="rotationMode"><option value="standard" ${state.school.rotationMode==='standard'?'selected':''}>Standard day</option><option value="ab" ${state.school.rotationMode==='ab'?'selected':''}>Alternating A/B days</option></select></label><p style="font-size:.74rem;color:var(--muted)">The supplied schedule is a standard day. B-day names can be different if Clark later provides an A/B schedule.</p></div></div></div>
       <div class="settings-section" style="margin-top:16px"><div class="card-title"><div><h3>Edit Lyric's classes</h3><p>A-day/default name, optional B-day name, room, teacher, and color.</p></div></div><form id="scheduleEditor" class="schedule-editor">${state.classes.map(c=>`<div class="editor-row"><div class="period-num">P${c.period}</div><label>A / default<input name="name-${c.id}" value="${esc(c.name)}" required></label><label>B-day<input name="bName-${c.id}" value="${esc(c.bName||c.name)}"></label><label>Room<input name="room-${c.id}" value="${esc(c.room)}"></label><label>Teacher<input name="teacher-${c.id}" value="${esc(c.teacher)}"></label><label>Color<input class="color-input" type="color" name="color-${c.id}" value="${esc(c.color)}"></label></div>`).join('')}<button class="btn">Save schedule changes</button></form></div>`;
     }
-    function renderAll(){ renderToday(); renderCalendar(); renderAssignments(); renderSchedule(); renderStudy(); renderGrades(); renderRoutines(); renderSettings(); bindDynamic(); }
+    function renderAll(){ renderToday(); renderCalendar(); renderAssignments(); renderSchedule(); renderStudy(); renderTutoring(); renderGrades(); renderRoutines(); renderSettings(); bindDynamic(); }
     function showPage(page){
       activePage=page; document.querySelectorAll('.page').forEach(p=>p.classList.toggle('active',p.id===page)); document.querySelectorAll('.nav button[data-page]').forEach(b=>b.classList.toggle('active',b.dataset.page===page));
-      if(page==='calendar')renderCalendar(); if(page==='assignments')renderAssignments(); if(page==='study')renderStudy(); if(page==='grades')renderGrades(); if(page==='routines')renderRoutines(); if(page==='settings')renderSettings(); bindDynamic(); window.scrollTo({top:0,behavior:'smooth'});
+      if(page==='calendar')renderCalendar(); if(page==='assignments')renderAssignments(); if(page==='study')renderStudy(); if(page==='tutoring')renderTutoring(); if(page==='grades')renderGrades(); if(page==='routines')renderRoutines(); if(page==='settings')renderSettings(); bindDynamic(); window.scrollTo({top:0,behavior:'smooth'});
     }
     function bindDynamic(){
       document.querySelectorAll('[data-open-assignment]').forEach(b=>b.onclick=()=>openAssignmentModal());
@@ -723,7 +756,7 @@
       state.assignments.filter(a=>!a.completed).forEach(a=>{const days=dayDiff(today,a.dueDate),limit=a.reminderDays??state.settings.defaultReminderDays,key=`${today}|${a.id}`;if(days<=limit&&!state.notified[key]){new Notification(a.dueDate<today?'Overdue assignment':`${a.type||'Assignment'} reminder`,{body:`${a.title} · ${classById(a.classId).name} · ${a.dueDate<today?'overdue':'due '+fmt(a.dueDate)}`});state.notified[key]=true;saveState();}});
     }
     function exportData(){const blob=new Blob([JSON.stringify(state,null,2)],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=`lyric-planner-backup-${localISO()}.json`;a.click();URL.revokeObjectURL(url);toast('Backup downloaded.');}
-    function importData(file){const r=new FileReader();r.onload=()=>{try{const data=JSON.parse(r.result);if(!Array.isArray(data.classes)||!Array.isArray(data.assignments))throw new Error();state=data;saveState();applySettings();renderAll();showPage('today');toast('Planner backup restored.');}catch(e){toast('That file is not a valid Lyric planner backup.');}};r.readAsText(file);}
+    function importData(file){const r=new FileReader();r.onload=()=>{try{const data=JSON.parse(r.result);if(!Array.isArray(data.classes)||!Array.isArray(data.assignments))throw new Error();data.classes=applyKnownGradingPolicy(data.classes);data.gradingPolicyVersion=GRADING_POLICY_VERSION;state=data;saveState();applySettings();renderAll();showPage('today');toast('Planner backup restored with syllabus grading weights.');}catch(e){toast('That file is not a valid Lyric planner backup.');}};r.readAsText(file);}
     document.querySelectorAll('.nav button[data-page]').forEach(b=>b.onclick=()=>showPage(b.dataset.page));
     document.getElementById('headerQuickAdd').onclick=()=>openAssignmentModal();
     document.getElementById('themeButton').onclick=()=>{state.settings.dark=!state.settings.dark;saveState();applySettings();};
