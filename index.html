@@ -313,6 +313,7 @@
     const SCHOOL_START = '2026-08-10';
     const SCHOOL_END = '2027-05-26';
     const GRADING_POLICY_VERSION = 'clark-syllabus-weights-2026-v1';
+    const CLASS_SCHEDULE_VERSION = 'clark-history-white-2026-v1';
     const classDefaults = [
       {id:'algebra2',period:1,name:'Algebra 2',bName:'Algebra 2',room:'C110',teacher:'Rubio, Deborah',start:'09:00',end:'09:50',earlyStart:'09:00',earlyEnd:'09:25',color:'#2f6fed',weights:{formative:40,summative:60},gradingPolicy:{type:'formative-summative',formative:40,summative:60,semesterExam:10,source:'Deborah Rubio Algebra 2 syllabus'},goal:90},
       {id:'spanish2',period:2,name:'Spanish 2',bName:'Spanish 2',room:'A105',teacher:'Granado, Xiomara',start:'09:55',end:'10:50',earlyStart:'09:30',earlyEnd:'09:55',color:'#b65b19',weights:{homework:20,quiz:20,test:35,project:25},goal:90},
@@ -323,19 +324,35 @@
       {id:'english2',period:7,name:'English 2',bName:'English 2',room:'A209',teacher:'Jones, Crystal',start:'14:35',end:'15:25',earlyStart:'12:00',earlyEnd:'12:25',color:'#d58a00',weights:{homework:20,quiz:20,test:35,project:25},goal:90},
       {id:'chemistry1',period:8,name:'Chemistry 1',bName:'Chemistry 1',room:'A049',teacher:'Tovar, Selene',start:'15:30',end:'16:20',earlyStart:'12:30',earlyEnd:'13:00',color:'#a62126',weights:{homework:20,quiz:20,test:35,project:25},goal:90}
     ];
+    const TUTORING_SOURCE = '26–27 Clark Tutoring Schedule';
     const TUTORING_HOURS = [
-      {classId:'algebra2',teacher:'Deborah Rubio (Lyric’s teacher)',room:'C110',source:'Deborah Rubio Algebra 2 syllabus',sessions:[
-        {days:'Tuesday',time:'8:15–8:45 AM',note:'Morning tutoring'},
+      {classId:'algebra2',teacher:'Deborah Rubio (Lyric’s teacher)',room:'C110',source:TUTORING_SOURCE,sessions:[
+        {days:'Tuesday',time:'8:20–8:50 AM',note:'Morning tutoring'},
         {days:'Thursday',time:'4:20–4:50 PM',note:'After-school tutoring'}
       ]},
-      {classId:'algebra2',teacher:'Johnson',room:'C215',source:'Algebra 2 tutoring team',sessions:[
-        {days:'Tuesday',time:'8:15–8:45 AM',note:'Morning tutoring'},
-        {days:'Wednesday',time:'4:20–4:50 PM',note:'After-school tutoring'}
+      {classId:'spanish2',teacher:'Xiomara Granado (Lyric’s teacher)',room:'A105',source:TUTORING_SOURCE,sessions:[
+        {days:'Wednesday & Thursday',time:'8:20–8:50 AM',note:'Morning tutoring'}
       ]},
-      {classId:'algebra2',teacher:'Nicholson',room:'C217',source:'Algebra 2 tutoring team',sessions:[
+      {classId:'worldhistory',teacher:'Karla White (Lyric’s teacher)',room:'A211',source:TUTORING_SOURCE,sessions:[
+        {days:'Monday & Wednesday',time:'4:20–4:50 PM',note:'After-school tutoring'}
+      ]},
+      {classId:'avtech',teacher:'Lesley Reyes (Lyric’s teacher)',room:'C204',source:TUTORING_SOURCE,sessions:[
+        {days:'Tuesday & Thursday',time:'8:20–8:50 AM',note:'Morning tutoring'}
+      ]},
+      {classId:'english2',teacher:'Crystal Jones (Lyric’s teacher)',room:'A209',source:TUTORING_SOURCE,sessions:[
+        {days:'Wednesday',time:'4:20–4:50 PM',note:'After-school tutoring'},
+        {days:'Friday',time:'8:20–8:50 AM',note:'Morning tutoring'}
+      ]},
+      {classId:'chemistry1',teacher:'Selene Tovar (Lyric’s teacher)',room:'A049',source:TUTORING_SOURCE,sessions:[
+        {days:'Tuesday & Thursday',time:'4:20–4:50 PM',note:'After-school tutoring'}
+      ]},
+      {classId:'algebra2',teacher:'Johnson (Algebra 2 tutoring team)',room:'C215',source:TUTORING_SOURCE,sessions:[
+        {days:'Tuesday & Wednesday',time:'8:20–8:50 AM',note:'Morning tutoring'}
+      ]},
+      {classId:'algebra2',teacher:'Nicholson (Algebra 2 tutoring team)',room:'C217',source:TUTORING_SOURCE,sessions:[
         {days:'Monday & Thursday',time:'4:20–4:50 PM',note:'After-school tutoring'}
       ]},
-      {classId:'algebra2',teacher:'Pedroza',room:'C218',source:'Algebra 2 tutoring team',sessions:[
+      {classId:'algebra2',teacher:'Pedroza (Algebra 2 tutoring team)',room:'C218',source:TUTORING_SOURCE,sessions:[
         {days:'Tuesday & Wednesday',time:'4:20–4:50 PM',note:'After-school tutoring'}
       ]}
     ];
@@ -349,6 +366,7 @@
         {id:'last-day',title:'Last day of school',type:'school',date:SCHOOL_END,time:'16:20',recurrence:'none',notes:'Finish strong!'}
       ],
       gradingPolicyVersion:GRADING_POLICY_VERSION,
+      classScheduleVersion:CLASS_SCHEDULE_VERSION,
       grades:[],
       classNotes:{}, studyLinks:[], studySessions:[], routineLog:{}, habitLog:{},
       routines:{
@@ -375,6 +393,14 @@
       if(algebra2){algebra2.weights={formative:40,summative:60};algebra2.gradingPolicy={type:'formative-summative',formative:40,summative:60,semesterExam:10,source:'Deborah Rubio Algebra 2 syllabus'};}
       return list;
     }
+    function applyKnownClassSchedule(classes,version){
+      const list=clone(classes);
+      if(version!==CLASS_SCHEDULE_VERSION){
+        const history=list.find(c=>c.id==='worldhistory');
+        if(history)history.teacher='White, Karla';
+      }
+      return list;
+    }
     function loadState(){
       try {
         const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
@@ -383,13 +409,14 @@
           ...clone(defaultState), ...saved,
           profile:{...defaultState.profile,...saved.profile}, school:{...defaultState.school,...saved.school},
           settings:{...defaultState.settings,...saved.settings}, routines:{...defaultState.routines,...saved.routines},
-          classes:applyKnownGradingPolicy(Array.isArray(saved.classes)&&saved.classes.length?saved.classes:classDefaults),
+          classes:applyKnownClassSchedule(applyKnownGradingPolicy(Array.isArray(saved.classes)&&saved.classes.length?saved.classes:classDefaults),saved.classScheduleVersion),
           assignments:Array.isArray(saved.assignments)?saved.assignments:[], events:Array.isArray(saved.events)?saved.events:clone(defaultState.events),
           grades:Array.isArray(saved.grades)?saved.grades:[], classNotes:saved.classNotes||{}, studyLinks:saved.studyLinks||[],
           studySessions:saved.studySessions||[], routineLog:saved.routineLog||{}, habitLog:saved.habitLog||{}, weeklyReviews:saved.weeklyReviews||{}, notified:saved.notified||{},
-          gradingPolicyVersion:GRADING_POLICY_VERSION
+          gradingPolicyVersion:GRADING_POLICY_VERSION,
+          classScheduleVersion:CLASS_SCHEDULE_VERSION
         };
-        if(needsGradingUpdate||JSON.stringify(saved.classes||[])!==JSON.stringify(merged.classes))localStorage.setItem(STORAGE_KEY,JSON.stringify(merged));
+        if(needsGradingUpdate||saved.classScheduleVersion!==CLASS_SCHEDULE_VERSION||JSON.stringify(saved.classes||[])!==JSON.stringify(merged.classes))localStorage.setItem(STORAGE_KEY,JSON.stringify(merged));
         return merged;
       } catch(e){ return clone(defaultState); }
     }
@@ -597,7 +624,7 @@
       const covered=new Set(TUTORING_HOURS.map(x=>x.classId));
       const cards=TUTORING_HOURS.map(item=>{const c=classById(item.classId);return `<div class="card card-pad" style="border-top:5px solid ${esc(c.color)}"><div class="card-title"><div><h3>${esc(c.name)}</h3><p>Period ${Number(c.period)} · ${esc(item.teacher)}</p></div><span class="pill blue">${esc(item.room)}</span></div><div class="day-agenda">${item.sessions.map(s=>`<div class="agenda-row" style="--event-color:${esc(c.color)}"><strong>${esc(s.days)}</strong><small>${esc(s.time)} · ${esc(s.note)}</small></div>`).join('')}</div><div class="privacy-note" style="margin-top:12px">Source: ${esc(item.source)}</div></div>`;}).join('');
       const missing=state.classes.filter(c=>!c.isLunch&&!covered.has(c.id));
-      document.getElementById('tutoring').innerHTML=`<div class="page-head"><div><h2>Tutoring Hours</h2><p>Teacher support times from the supplied 2026–27 syllabi.</p></div><button class="btn secondary" onclick="window.print()">Print</button></div><div class="grid two">${cards}</div><div class="card card-pad" style="margin-top:16px"><div class="card-title"><div><h3>No hours supplied yet</h3><p>These classes did not have an attached tutoring schedule.</p></div></div><div class="meta" style="display:flex;flex-wrap:wrap;gap:8px">${missing.length?missing.map(c=>`<span class="pill">P${Number(c.period)} · ${esc(c.name)}</span>`).join(''):'<span class="pill green">All class tutoring schedules supplied</span>'}</div><div class="privacy-note" style="margin-top:12px">Check with the teacher before attending. Tutoring schedules may change during the school year.</div></div>`;
+      document.getElementById('tutoring').innerHTML=`<div class="page-head"><div><h2>Tutoring Hours</h2><p>Teacher support times from the 26–27 Clark Tutoring Schedule.</p></div><button class="btn secondary" onclick="window.print()">Print</button></div><div class="grid two">${cards}</div><div class="card card-pad" style="margin-top:16px"><div class="card-title"><div><h3>Hours not listed</h3><p>The supplied Clark tutoring schedule does not list hours for these classes. Ask the teacher for availability.</p></div></div><div class="meta" style="display:flex;flex-wrap:wrap;gap:8px">${missing.length?missing.map(c=>`<span class="pill">P${Number(c.period)} · ${esc(c.name)} · ${esc(c.teacher)}</span>`).join(''):'<span class="pill green">All class tutoring schedules supplied</span>'}</div><div class="privacy-note" style="margin-top:12px">Check with the teacher before attending. Tutoring schedules may change during the school year.</div></div>`;
     }
     function renderStudy(){
       const tests=sortedAssignments(state.assignments.filter(a=>!a.completed&&['test','quiz','project','presentation'].includes(a.type)&&a.dueDate>=localISO()));
@@ -756,7 +783,7 @@
       state.assignments.filter(a=>!a.completed).forEach(a=>{const days=dayDiff(today,a.dueDate),limit=a.reminderDays??state.settings.defaultReminderDays,key=`${today}|${a.id}`;if(days<=limit&&!state.notified[key]){new Notification(a.dueDate<today?'Overdue assignment':`${a.type||'Assignment'} reminder`,{body:`${a.title} · ${classById(a.classId).name} · ${a.dueDate<today?'overdue':'due '+fmt(a.dueDate)}`});state.notified[key]=true;saveState();}});
     }
     function exportData(){const blob=new Blob([JSON.stringify(state,null,2)],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=`lyric-planner-backup-${localISO()}.json`;a.click();URL.revokeObjectURL(url);toast('Backup downloaded.');}
-    function importData(file){const r=new FileReader();r.onload=()=>{try{const data=JSON.parse(r.result);if(!Array.isArray(data.classes)||!Array.isArray(data.assignments))throw new Error();data.classes=applyKnownGradingPolicy(data.classes);data.gradingPolicyVersion=GRADING_POLICY_VERSION;state=data;saveState();applySettings();renderAll();showPage('today');toast('Planner backup restored with syllabus grading weights.');}catch(e){toast('That file is not a valid Lyric planner backup.');}};r.readAsText(file);}
+    function importData(file){const r=new FileReader();r.onload=()=>{try{const data=JSON.parse(r.result);if(!Array.isArray(data.classes)||!Array.isArray(data.assignments))throw new Error();data.classes=applyKnownClassSchedule(applyKnownGradingPolicy(data.classes),data.classScheduleVersion);data.gradingPolicyVersion=GRADING_POLICY_VERSION;data.classScheduleVersion=CLASS_SCHEDULE_VERSION;state=data;saveState();applySettings();renderAll();showPage('today');toast('Planner backup restored with syllabus grading weights.');}catch(e){toast('That file is not a valid Lyric planner backup.');}};r.readAsText(file);}
     document.querySelectorAll('.nav button[data-page]').forEach(b=>b.onclick=()=>showPage(b.dataset.page));
     document.getElementById('headerQuickAdd').onclick=()=>openAssignmentModal();
     document.getElementById('themeButton').onclick=()=>{state.settings.dark=!state.settings.dark;saveState();applySettings();};
